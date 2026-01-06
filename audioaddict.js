@@ -1,6 +1,9 @@
 (function () {
     'use strict';
 
+    // Версия плагина для логов
+    var AA_VERSION = '54_github_stable';
+
     // 1. НАСТРОЙКИ И ДАННЫЕ
     var AA_COLORS = {
         'di': '#1e8bc3', 'radiotunes': '#2ecc71', 'jazzradio': '#e67e22',
@@ -17,10 +20,7 @@
     };
 
     var AA_SERVERS = { 'prem1': 'Premium 1', 'prem2': 'Premium 2', 'prem4': 'Premium 4' };
-    
-    // Новые типы визуализации (Canvas)
     var AA_VIS_TYPES = { 'none': 'Нет', 'bars': 'Эквалайзер (Live)', 'wave': 'Волна (Live)', 'particles': 'Огоньки' };
-    
     var AA_SHUFFLE_MODES = { 'off': 'Выключено', 'cat': 'В текущей категории', 'global': 'По всем каталогам' };
     var AA_SHUFFLE_TRIGGERS = { 'manual': 'Только кнопкой >>', 'track': 'После конца трека' };
     
@@ -68,7 +68,7 @@
         tryNext(0);
     }
 
-    // --- ЛОГИКА ИЗБРАННОГО (ИСПРАВЛЕНА ПРОВЕРКА) ---
+    // --- ЛОГИКА ИЗБРАННОГО ---
     function isSyncEnabled() { 
         var val = Lampa.Storage.get('aa_fav_sync', 'false');
         return val === true || val === 'true'; 
@@ -131,7 +131,7 @@
         }
     }
 
-    // 3. CANVAS ВИЗУАЛИЗАТОР (ЭМУЛЯЦИЯ)
+    // 3. CANVAS ВИЗУАЛИЗАТОР
     var AA_Visualizer = {
         canvas: null,
         ctx: null,
@@ -178,24 +178,18 @@
             ctx.fillStyle = this.color;
 
             if (this.type === 'bars') {
-                // Эквалайзер (10 полос)
                 var bars = 10;
                 var gap = 4;
                 var barW = (w - (gap * (bars - 1))) / bars;
                 
                 for (var i = 0; i < bars; i++) {
-                    // Математическая магия для имитации ритма
                     var speed = (i % 2 === 0) ? 0.008 : 0.012;
                     var offset = i * 500;
                     var height = Math.abs(Math.sin((time + offset) * speed)) * h * 0.8 + (h * 0.1);
-                    
-                    // Добавляем "дрожание"
                     height += Math.random() * 5;
-                    
                     ctx.fillRect(i * (barW + gap), h - height, barW, height);
                 }
             } else if (this.type === 'wave') {
-                // Волна
                 ctx.beginPath();
                 ctx.moveTo(0, h / 2);
                 for (var x = 0; x < w; x++) {
@@ -206,12 +200,10 @@
                 ctx.lineWidth = 3;
                 ctx.stroke();
             } else if (this.type === 'particles') {
-                // Огоньки
                 for (var j = 0; j < 5; j++) {
                     var pX = (Math.sin(time * 0.002 + j) + 1) / 2 * w;
                     var pY = (Math.cos(time * 0.003 + j*2) + 1) / 2 * h;
                     var size = Math.abs(Math.sin(time * 0.005 + j)) * 5 + 2;
-                    
                     ctx.beginPath();
                     ctx.arc(pX, pY, size, 0, Math.PI * 2);
                     ctx.fill();
@@ -226,16 +218,19 @@
         interval: null,
         
         init: function() {
+            // Удаляем старый оверлей, если он есть
+            $('#aa-overlay-info').remove();
+
             var html = '<div id="aa-overlay-info" style="display:none;">' +
                 '<div class="aa-ov-card">' +
                     '<div class="aa-ov-img-wrap">' +
                         '<img class="aa-ov-img" src="" />' +
+                        '<div class="aa-ov-vis-container"></div>' +
                     '</div>' +
                     '<div class="aa-ov-text">' +
                         '<div class="aa-ov-station">Station</div>' +
                         '<div class="aa-ov-track">Track</div>' +
                     '</div>' +
-                    '<div class="aa-ov-vis-box"></div>' + // Отдельный блок для канваса
                 '</div>' +
             '</div>';
             
@@ -246,6 +241,7 @@
 
         startLoop: function() {
             var _this = this;
+            if(this.interval) clearInterval(this.interval);
             this.interval = setInterval(function() { _this.check(); }, 1000);
         },
 
@@ -275,23 +271,18 @@
             this.el.find('.aa-ov-station').text(brandName + ' - ' + data.name).css('color', color);
             this.el.find('.aa-ov-track').text(track);
 
-            // Стиль виджета
             var pos = Lampa.Storage.get('aa_saver_pos', 'bl');
             var op = Lampa.Storage.get('aa_saver_opacity', '1');
             this.el.removeClass('aa-pos-bl aa-pos-br aa-pos-tl aa-pos-tr').addClass('aa-pos-' + pos);
             this.el.find('.aa-ov-card').css('opacity', op);
 
-            // Обновление визуализатора
             var type = Lampa.Storage.get('aa_vis_type', 'bars');
-            var visContainer = this.el.find('.aa-ov-vis-box');
+            var visContainer = this.el.find('.aa-ov-vis-container');
             
-            // Если тип изменился или визуализатор не запущен
             if (visContainer.data('type') !== type || !AA_Visualizer.ctx) {
                 visContainer.data('type', type);
-                // Запускаем Canvas анимацию
                 AA_Visualizer.init(visContainer, type, color);
             } else {
-                // Если работает - просто обновляем цвет, если сменилась станция
                 AA_Visualizer.color = color;
             }
         },
@@ -300,7 +291,7 @@
         hide: function() { 
             if (this.el.is(':visible')) {
                 this.el.fadeOut(300);
-                AA_Visualizer.stop(); // Останавливаем анимацию
+                AA_Visualizer.stop();
             }
         }
     };
@@ -313,7 +304,6 @@
         var meta_timer = null;
         var current_data = null;
         var network = new Lampa.Reguest();
-        
         var last_track_title = "";
         var manual_stop = false; 
         var is_loading = false;
@@ -529,7 +519,6 @@
         var selector = $('<div class="aa-net-row"></div>');
         var last_focused = null;
 
-        // Вспомогательная функция для получения списка (Sync или Local)
         function getFavItems() {
             if (isSyncEnabled()) {
                 if (Lampa.Favorite && Lampa.Favorite.result && Lampa.Favorite.result.audioaddict_card) {
@@ -662,7 +651,7 @@
 
     // 7. ЗАПУСК
     function startPlugin() {
-        if (window.aa_v53_vis) return; window.aa_v53_vis = true;
+        if (window.aa_v54_final_stable) return; window.aa_v54_final_stable = true;
         
         Lampa.Component.add('audioaddict', AA_Component);
         
@@ -720,9 +709,8 @@
             '.aa-pl-btn.focus svg path { fill: #000 !important; }' +
             '.aa-pl-btn svg { width: 20px; height: 20px; }' +
             '.aa-pl-pause { display: none; } .aa-pl-widget:not(.stop) .aa-pl-pause { display: block; } .aa-pl-widget:not(.stop) .aa-pl-play { display: none; }' +
-            '.aa-pl-fav.active svg path { fill: #f1c40f !important; }' + // Активное сердечко
+            '.aa-pl-fav.active svg path { fill: #f1c40f !important; }' + 
             
-            // ОВЕРЛЕЙ
             '#aa-overlay-info { position: fixed; z-index: 999999; }' +
             '.aa-pos-bl { bottom: 50px; left: 50px; }' +
             '.aa-pos-br { bottom: 50px; right: 50px; }' +
@@ -732,12 +720,17 @@
             '.aa-ov-card { display: flex; align-items: center; background: rgba(0,0,0,0.8); backdrop-filter: blur(20px); padding: 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 10px 40px rgba(0,0,0,0.5); max-width: 600px; }' +
             '.aa-ov-img-wrap { position: relative; width: 100px; height: 100px; margin-right: 25px; flex-shrink: 0; }' +
             '.aa-ov-img { width: 100%; height: 100%; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); object-fit: cover; }' +
-            '.aa-ov-vis-box { position: absolute; bottom: 0; left: 0; width: 100%; height: 100%; border-radius: 12px; overflow: hidden; opacity: 0.8; }' +
             '.aa-ov-text { display: flex; flex-direction: column; justify-content: center; }' +
             '.aa-ov-station { font-size: 24px; font-weight: bold; margin-bottom: 5px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }' +
             '.aa-ov-track { font-size: 18px; color: #ddd; text-shadow: 0 2px 4px rgba(0,0,0,0.8); line-height: 1.3; }' +
+            '.aa-ov-vis-container.mode-bars { position: absolute; bottom: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: flex-end; justify-content: space-around; padding: 5px; box-sizing: border-box; }' +
+            '.aa-ov-bar { width: 15%; background: #fff; animation: aa-eq-bounce 0.5s infinite ease-in-out alternate; border-radius: 3px 3px 0 0; }' +
+            '@keyframes aa-eq-bounce { 0% { height: 10%; } 100% { height: 70%; } }' +
             '.aa-pulse-anim { animation: aa-pulse-img 1s infinite alternate; }' +
             '@keyframes aa-pulse-img { 0% { transform: scale(1); filter: brightness(1); } 100% { transform: scale(1.05); filter: brightness(1.2); } }' +
+            '.aa-ov-vis-container.mode-wave { position: absolute; bottom: 10px; left: 0; width: 100%; height: 20px; overflow: hidden; }' +
+            '.aa-ov-wave { width: 100%; height: 100%; border-top: 3px solid #fff; border-radius: 50%; animation: aa-wave-spin 1s infinite linear; transform-origin: 50% 100%; }' +
+            '@keyframes aa-wave-spin { 0% { transform: rotate(-10deg) scaleY(0.5); } 50% { transform: rotate(10deg) scaleY(1); } 100% { transform: rotate(-10deg) scaleY(0.5); } }' +
             '</style>';
         $('body').append(styles);
 
@@ -754,7 +747,7 @@
                 window.aa_player.create();
 
                 if (Lampa.SettingsApi) {
-                    var COMP_ID = "aa_settings_final_v53";
+                    var COMP_ID = "aa_settings_final_v54";
                     Lampa.SettingsApi.addComponent({ component: COMP_ID, name: "AudioAddict", icon: '<svg height="24" viewBox="0 0 24 24" width="24" fill="white"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>' });
                     
                     Lampa.SettingsApi.addParam({ component: COMP_ID, param: { name: "aa_server", type: "select", values: AA_SERVERS, "default": 'prem2' }, field: { name: "Сервер" } });
