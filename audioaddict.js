@@ -1,8 +1,8 @@
 (function () {
     'use strict';
 
-    // Версия плагина для логов
-    var AA_VERSION = '54_github_stable';
+    // Версия плагина
+    var AA_VERSION = '55_stable';
 
     // 1. НАСТРОЙКИ И ДАННЫЕ
     var AA_COLORS = {
@@ -142,7 +142,6 @@
         init: function(container, type, color) {
             this.stop();
             container.empty();
-            
             if (type === 'none') return;
 
             this.canvas = document.createElement('canvas');
@@ -155,7 +154,6 @@
             this.ctx = this.canvas.getContext('2d');
             this.type = type;
             this.color = color;
-            
             this.loop();
         },
 
@@ -181,7 +179,6 @@
                 var bars = 10;
                 var gap = 4;
                 var barW = (w - (gap * (bars - 1))) / bars;
-                
                 for (var i = 0; i < bars; i++) {
                     var speed = (i % 2 === 0) ? 0.008 : 0.012;
                     var offset = i * 500;
@@ -218,9 +215,6 @@
         interval: null,
         
         init: function() {
-            // Удаляем старый оверлей, если он есть
-            $('#aa-overlay-info').remove();
-
             var html = '<div id="aa-overlay-info" style="display:none;">' +
                 '<div class="aa-ov-card">' +
                     '<div class="aa-ov-img-wrap">' +
@@ -241,7 +235,6 @@
 
         startLoop: function() {
             var _this = this;
-            if(this.interval) clearInterval(this.interval);
             this.interval = setInterval(function() { _this.check(); }, 1000);
         },
 
@@ -249,6 +242,7 @@
             if (Lampa.Storage.get('aa_show_on_saver', 'true') === 'false') { this.hide(); return; }
             var player = window.aa_player;
             if (!player || !player.isPlaying()) { this.hide(); return; }
+            
             var isSaverActive = $('body').hasClass('screensaver-active') || $('.screensaver').length > 0 || $('.screensaver-box').length > 0;
 
             if (isSaverActive) {
@@ -277,11 +271,11 @@
             this.el.find('.aa-ov-card').css('opacity', op);
 
             var type = Lampa.Storage.get('aa_vis_type', 'bars');
-            var visContainer = this.el.find('.aa-ov-vis-container');
+            var container = this.el.find('.aa-ov-vis-container');
             
-            if (visContainer.data('type') !== type || !AA_Visualizer.ctx) {
-                visContainer.data('type', type);
-                AA_Visualizer.init(visContainer, type, color);
+            if (container.data('type') !== type || !AA_Visualizer.ctx) {
+                container.data('type', type);
+                AA_Visualizer.init(container, type, color);
             } else {
                 AA_Visualizer.color = color;
             }
@@ -344,7 +338,6 @@
             html.find('.aa-pl-next').on('hover:enter', function() { self.playNext(); });
             html.find('.aa-pl-stop').on('hover:enter', function() { self.stopAndClose(); });
             html.find('.aa-pl-pp, .aa-pl-icon-wrap').on('hover:enter', function() { if (is_playing) audio.pause(); else audio.play(); });
-            
             html.find('.aa-pl-fav').on('hover:enter', function() {
                 if(!current_data) return;
                 if(AA_Fav_Check(current_data)) AA_Fav_Remove(current_data);
@@ -386,11 +379,9 @@
             var callback = function(title) {
                 if(!title) return;
                 setTrackText(title);
-                
                 if (last_track_title && last_track_title !== title && !manual_stop && is_playing) {
                     var trigger = Lampa.Storage.get('aa_shuffle_auto', 'manual');
                     var mode = Lampa.Storage.get('aa_shuffle_mode', 'off');
-                    
                     if (trigger === 'track' && mode !== 'off') {
                         Lampa.Noty.show('Трек завершен. Переключаем...');
                         window.aa_player.playNext();
@@ -456,12 +447,10 @@
         this.playNext = function() { 
             manual_stop = false;
             var mode = Lampa.Storage.get('aa_shuffle_mode', 'off');
-            
             if (mode === 'cat') {
                 if (!window.aa_channels_list.length) return;
                 var rnd = Math.floor(Math.random() * window.aa_channels_list.length);
                 this.play(window.aa_channels_list[rnd]);
-            
             } else if (mode === 'global') {
                 var brands = Object.keys(AA_BRANDS).filter(function(k){ return k !== 'favorites' && k !== 'custom'; });
                 var rndBrand = brands[Math.floor(Math.random() * brands.length)];
@@ -613,7 +602,6 @@
                         if (AA_Fav_Check(el)) {
                             AA_Fav_Remove(el);
                             item.find('.aa-card-fav').remove();
-                            // Если мы в вкладке "Избранное", скрываем элемент
                             if (Lampa.Storage.get('aa_brand') === 'favorites') item.css({opacity: 0.3, pointerEvents: 'none'});
                         }
                         else {
@@ -651,7 +639,7 @@
 
     // 7. ЗАПУСК
     function startPlugin() {
-        if (window.aa_v54_final_stable) return; window.aa_v54_final_stable = true;
+        if (window.aa_v55_stable) return; window.aa_v55_stable = true;
         
         Lampa.Component.add('audioaddict', AA_Component);
         
@@ -711,7 +699,8 @@
             '.aa-pl-pause { display: none; } .aa-pl-widget:not(.stop) .aa-pl-pause { display: block; } .aa-pl-widget:not(.stop) .aa-pl-play { display: none; }' +
             '.aa-pl-fav.active svg path { fill: #f1c40f !important; }' + 
             
-            '#aa-overlay-info { position: fixed; z-index: 999999; }' +
+            // --- ОВЕРЛЕЙ + ВИЗУАЛИЗАЦИЯ ---
+            '#aa-overlay-info { position: fixed; bottom: 50px; left: 50px; z-index: 999999; }' +
             '.aa-pos-bl { bottom: 50px; left: 50px; }' +
             '.aa-pos-br { bottom: 50px; right: 50px; }' +
             '.aa-pos-tl { top: 50px; left: 50px; }' +
@@ -723,11 +712,17 @@
             '.aa-ov-text { display: flex; flex-direction: column; justify-content: center; }' +
             '.aa-ov-station { font-size: 24px; font-weight: bold; margin-bottom: 5px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }' +
             '.aa-ov-track { font-size: 18px; color: #ddd; text-shadow: 0 2px 4px rgba(0,0,0,0.8); line-height: 1.3; }' +
+            
+            // ЭКВАЛАЙЗЕР
             '.aa-ov-vis-container.mode-bars { position: absolute; bottom: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: flex-end; justify-content: space-around; padding: 5px; box-sizing: border-box; }' +
             '.aa-ov-bar { width: 15%; background: #fff; animation: aa-eq-bounce 0.5s infinite ease-in-out alternate; border-radius: 3px 3px 0 0; }' +
             '@keyframes aa-eq-bounce { 0% { height: 10%; } 100% { height: 70%; } }' +
+            
+            // ПУЛЬСАЦИЯ
             '.aa-pulse-anim { animation: aa-pulse-img 1s infinite alternate; }' +
             '@keyframes aa-pulse-img { 0% { transform: scale(1); filter: brightness(1); } 100% { transform: scale(1.05); filter: brightness(1.2); } }' +
+            
+            // ВОЛНА
             '.aa-ov-vis-container.mode-wave { position: absolute; bottom: 10px; left: 0; width: 100%; height: 20px; overflow: hidden; }' +
             '.aa-ov-wave { width: 100%; height: 100%; border-top: 3px solid #fff; border-radius: 50%; animation: aa-wave-spin 1s infinite linear; transform-origin: 50% 100%; }' +
             '@keyframes aa-wave-spin { 0% { transform: rotate(-10deg) scaleY(0.5); } 50% { transform: rotate(10deg) scaleY(1); } 100% { transform: rotate(-10deg) scaleY(0.5); } }' +
@@ -747,7 +742,7 @@
                 window.aa_player.create();
 
                 if (Lampa.SettingsApi) {
-                    var COMP_ID = "aa_settings_final_v54";
+                    var COMP_ID = "aa_settings_final_v53";
                     Lampa.SettingsApi.addComponent({ component: COMP_ID, name: "AudioAddict", icon: '<svg height="24" viewBox="0 0 24 24" width="24" fill="white"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>' });
                     
                     Lampa.SettingsApi.addParam({ component: COMP_ID, param: { name: "aa_server", type: "select", values: AA_SERVERS, "default": 'prem2' }, field: { name: "Сервер" } });
